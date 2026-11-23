@@ -232,3 +232,9 @@ svg [tabindex]:focus-visible { outline: 2px solid var(--accent); }
 
 /* Ganancia en pesos */
 .cop-title { font-size: .8rem; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; margin: 12px 0 4px; padding-top: 10px; border-top: 1px solid var(--border); }
+
+/* Vista / ocultar */
+.tabs button[hidden] { display: none; }
+.link-btn { background: none; border: 0; color: var(--muted); font: inherit; font-size: .8rem; padding: 2px 4px; cursor: pointer; text-decoration: underline; }
+.card .row.between { align-items: baseline; }
+#view-prefs .check { display: flex; align-items: center; gap: 10px; padding: 6px 0; }

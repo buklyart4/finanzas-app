@@ -161,6 +161,12 @@ Para saber si de verdad ganas, la app también calcula en pesos (solo posiciones
 
 Al crear o editar una meta puedes ponerle un nombre (ej. "Fondo de emergencia"); si lo dejas vacío se usa el de la cuenta.
 
+## Eliminar cuentas y personalizar la vista
+
+- **Eliminar cuenta:** toca la cuenta → **Eliminar cuenta**. Si tiene movimientos, la app te dice cuántos y los elimina junto con la cuenta (incluidas las transferencias que la tocan); no se puede deshacer. Las deudas, abonos y operaciones de inversión que usaban esa cuenta se conservan, pero sin cuenta asociada. Si solo quieres ocultarla, usa *Archivada*.
+- **Ajustes → Vista** (se guarda en cada dispositivo, no se sincroniza): quitar las pestañas Movimientos, Inversiones, Deudas o Reportes; ocultar *Meta de ahorro* y *Vencimientos* del Resumen; y mostrar u ocultar el total de cada moneda. En el Resumen cada total tiene un botón *Ocultar* y, si hay uno oculto, aparece *Mostrar total en…*.
+- Ocultar solo cambia lo que ves: los datos siguen ahí. Un total oculto sigue contando dentro de tus cuentas e inversiones.
+
 ## Pruebas
 
 - `node test-sync.mjs` (Node 18+): dos dispositivos y un GitHub falso (cifrado, contraseña incorrecta, ediciones, borrados, conflictos y respaldo).

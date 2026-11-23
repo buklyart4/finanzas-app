@@ -14,7 +14,7 @@ import { fetchPrices, fetchTrm } from './prices.js';
 import { rankedBars, groupedColumns, lineChart, columnsTarget, tableView, hideTip } from './charts.js';
 import { DEFAULT_CATEGORIES, SUGGESTED_ACCOUNTS, ACCOUNT_TYPES } from './defaults.js';
 
-const VERSION = '0.7.0 (Fase 4: inversiones, dólar e inflación)';
+const VERSION = '0.8.0 (eliminar cuentas, vista)';
 const PX_KEY = 'finanzas.twelve';
 const CFG_KEY = 'finanzas.cfg';
 const $ = (s) => document.querySelector(s);
@@ -244,9 +244,42 @@ const dayLabel = (ds) => {
   return cap(new Date(y, mo - 1, d).toLocaleDateString('es-CO', { weekday: 'long', day: 'numeric', month: 'long' }));
 };
 
+// ---------- Vista (preferencias de este dispositivo) ----------
+const VIEW_KEY = 'finanzas.view';
+const TOGGLE_TABS = [['movs', 'Movimientos'], ['inv', 'Inversiones'], ['deudas', 'Deudas'], ['reportes', 'Reportes']];
+const TOGGLE_SECTIONS = [['savings', 'Meta de ahorro'], ['due', 'Vencimientos']];
+function getView() {
+  let v = null;
+  try { v = JSON.parse(localStorage.getItem(VIEW_KEY)); } catch { /* sin almacenamiento */ }
+  return { hiddenTabs: [], hiddenSections: [], hiddenCurrencies: [], ...(v || {}) };
+}
+function setView(patch) {
+  const v = { ...getView(), ...patch };
+  try { localStorage.setItem(VIEW_KEY, JSON.stringify(v)); } catch { /* sin almacenamiento */ }
+  return render();
+}
+const toggleIn = (list, key, on) => (on ? list.filter((x) => x !== key) : [...new Set([...list, key])]);
+
+function renderViewPrefs() {
+  const root = $('#view-prefs');
+  if (!root) return;
+  const v = getView();
+  const box = (label, on, onchange) => h('label', { class: 'check' }, h('input', { type: 'checkbox', checked: on, onchange: (e) => onchange(e.target.checked) }), label);
+  root.replaceChildren(...[
+    h('div', { class: 'section-title', text: 'Pestañas' }),
+    TOGGLE_TABS.map(([k, label]) => box(label, !v.hiddenTabs.includes(k), (on) => setView({ hiddenTabs: toggleIn(v.hiddenTabs, k, on) }))),
+    h('div', { class: 'section-title', text: 'Resumen' }),
+    TOGGLE_SECTIONS.map(([k, label]) => box(label, !v.hiddenSections.includes(k), (on) => setView({ hiddenSections: toggleIn(v.hiddenSections, k, on) }))),
+    Object.entries(CURRENCIES).map(([k, c]) => box(`Total en ${c.label}`, !v.hiddenCurrencies.includes(k), (on) => setView({ hiddenCurrencies: toggleIn(v.hiddenCurrencies, k, on) }))),
+  ].flat());
+}
+
 // ---------- Vistas ----------
 async function render() {
   ui.data = await loadData();
+  const view = getView();
+  if (view.hiddenTabs.includes(ui.tab)) ui.tab = 'resumen';
+  document.querySelectorAll('.tabs button').forEach((b) => { b.hidden = view.hiddenTabs.includes(b.dataset.tab); });
   document.querySelectorAll('.tabs button').forEach((b) => b.classList.toggle('active', b.dataset.tab === ui.tab));
   for (const t of ['resumen', 'movs', 'inv', 'deudas', 'reportes', 'ajustes']) $(`#tab-${t}`).hidden = ui.tab !== t;
   $('#btn-settings').classList.toggle('active', ui.tab === 'ajustes');
@@ -258,7 +291,7 @@ async function render() {
   else if (ui.tab === 'inv') renderInv(ui.data);
   else if (ui.tab === 'deudas') renderDeudas(ui.data);
   else if (ui.tab === 'reportes') renderReportes(ui.data);
-  else renderCategories(ui.data);
+  else { renderCategories(ui.data); renderViewPrefs(); }
 }
 
 async function showTab(name) {
@@ -336,11 +369,17 @@ function renderResumen(d) {
   const net = netSummary(d.accounts, d.balances, d.debtTot, d.inv.totals);
   const totals = monthTotals(d.movs, d.accById, monthOf(todayStr()));
   const cards = h('div', { class: 'cards' });
+  const view = getView();
+  const hiddenCur = Object.keys(net).filter((c) => view.hiddenCurrencies.includes(c));
   for (const cur of Object.keys(net)) {
+    if (view.hiddenCurrencies.includes(cur)) continue;
     const n = net[cur];
     const t = totals[cur] || { ingresos: 0, gastos: 0 };
     cards.append(h('div', { class: 'card' },
-      h('div', { class: 'cur', text: `Neto · ${CURRENCIES[cur] ? CURRENCIES[cur].label : cur}` }),
+      h('div', { class: 'row between' },
+        h('div', { class: 'cur', text: `Neto · ${CURRENCIES[cur] ? CURRENCIES[cur].label : cur}` }),
+        Object.keys(net).filter((c) => !view.hiddenCurrencies.includes(c)).length > 1 && h('button', { class: 'link-btn', type: 'button', text: 'Ocultar', 'aria-label': `Ocultar el total en ${cur}`,
+          onclick: () => setView({ hiddenCurrencies: [...new Set([...view.hiddenCurrencies, cur])] }) })),
       h('div', { class: 'big', text: formatMoney(n.net, cur) }),
       h('div', { class: 'line' }, h('span', { text: 'Disponible' }), h('span', { text: formatMoney(n.assets, cur) })),
       n.cards !== 0 && h('div', { class: 'line' }, h('span', { text: 'Tarjetas' }), h('span', { text: formatMoney(n.cards, cur) })),
@@ -350,9 +389,14 @@ function renderResumen(d) {
       h('div', { class: 'line' }, h('span', { text: 'Ingresos este mes' }), h('span', { text: formatMoney(t.ingresos, cur) })),
       h('div', { class: 'line' }, h('span', { text: 'Gastos este mes' }), h('span', { text: formatMoney(t.gastos, cur) }))));
   }
-  root.append(cards);
+  if (cards.children.length) root.append(cards);
+  if (hiddenCur.length) {
+    root.append(h('div', { class: 'row wrap', style: 'margin:-4px 0 10px' }, hiddenCur.map((cur) =>
+      h('button', { class: 'btn', type: 'button', text: `Mostrar total en ${CURRENCIES[cur] ? CURRENCIES[cur].label : cur}`,
+        onclick: () => setView({ hiddenCurrencies: view.hiddenCurrencies.filter((x) => x !== cur) }) }))));
+  }
 
-  renderSavings(root, d);
+  if (!view.hiddenSections.includes('savings')) renderSavings(root, d);
 
   const limit = addDays(todayStr(), 7);
   const soon = [];
@@ -363,7 +407,7 @@ function renderResumen(d) {
     const c = d.cycles.get(a.id);
     if (c && c.toPay > 0 && c.due <= limit) soon.push({ date: c.due, el: cardDueRow(a, c) });
   }
-  if (soon.length) {
+  if (soon.length && !view.hiddenSections.includes('due')) {
     soon.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
     root.append(h('div', { class: 'section-title', text: 'Vencimientos' }), h('div', { class: 'list' }, soon.map((s) => s.el)));
   }
@@ -1748,6 +1792,33 @@ async function openAbonoForm(debtId, existing) {
   }
 }
 
+// Elimina una cuenta. Sus movimientos (y transferencias que la tocan) se eliminan con ella;
+// deudas, abonos y operaciones de inversión se conservan sin cuenta asociada.
+async function deleteAccount(acc) {
+  const d = ui.data;
+  const movs = d.movs.filter((m) => m.accountId === acc.id || m.toAccountId === acc.id);
+  const debts = d.debts.filter((x) => x.accountId === acc.id);
+  const abonos = d.abonos.filter((x) => x.accountId === acc.id);
+  const ops = d.ops.filter((x) => x.accountId === acc.id);
+  const goals = d.goals.filter((g) => g.accountId === acc.id);
+  const lines = [`¿Eliminar la cuenta "${acc.name}"?`];
+  if (movs.length) lines.push(`\nSe eliminarán también sus ${movs.length} movimiento(s), incluidas las transferencias que la tocan. Los totales y reportes cambiarán.`);
+  if (debts.length + abonos.length + ops.length) lines.push(`\nLas deudas, abonos y operaciones de inversión que usaban esta cuenta se conservan, pero quedan sin cuenta asociada.`);
+  if (goals.length) lines.push('\nTambién se elimina su meta de ahorro.');
+  if (movs.length) lines.push('\nSi solo quieres ocultarla, mejor márcala como archivada. Esto no se puede deshacer.');
+  if (!confirm(lines.join(''))) return;
+  closeSheet();
+  if (ui.filterAccount === acc.id) ui.filterAccount = '';
+  await saveRecords([
+    { ...acc, deleted: true },
+    ...movs.map((m) => ({ ...m, deleted: true })),
+    ...goals.map((g) => ({ ...g, deleted: true })),
+    ...debts.map((x) => ({ ...x, accountId: '' })),
+    ...abonos.map((x) => ({ ...x, accountId: '' })),
+    ...ops.map((x) => ({ ...x, accountId: '' })),
+  ]);
+}
+
 function openAccountForm(existing, preset) {
   const d = ui.data;
   if (!d) return;
@@ -1837,9 +1908,11 @@ function openAccountForm(existing, preset) {
       existing && h('label', { class: 'check' },
         h('input', { type: 'checkbox', name: 'archived', checked: s.archived }), 'Archivada (la oculta del resumen y de los formularios)'),
     ];
-    const buttons = h('div', { class: 'row end wrap' },
-      h('button', { class: 'btn', type: 'button', text: 'Cancelar', onclick: closeSheet }),
-      h('button', { class: 'btn primary', type: 'submit', text: 'Guardar' }));
+    const buttons = h('div', { class: 'row between wrap' },
+      existing ? h('button', { class: 'btn danger', type: 'button', text: 'Eliminar cuenta', onclick: () => deleteAccount(existing) }) : h('span'),
+      h('div', { class: 'row' },
+        h('button', { class: 'btn', type: 'button', text: 'Cancelar', onclick: closeSheet }),
+        h('button', { class: 'btn primary', type: 'submit', text: 'Guardar' })));
     body.replaceChildren(h('form', { class: 'form', onsubmit: submit },
       h('h3', { text: existing ? 'Editar cuenta' : 'Nueva cuenta' }), fields, err, buttons));
   }
