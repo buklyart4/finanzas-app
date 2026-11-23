@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0f766e">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Finanzas">
+  <title>Finanzas</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon-192.png">
+  <link rel="apple-touch-icon" href="icon-192.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="file-warning" hidden style="background:#fef3c7;color:#78350f;padding:12px 14px;border-radius:10px;margin:12px 0;font-size:.95rem">
+    <strong>Esta página no funciona abriendo el archivo directamente.</strong>
+    Ábrela desde un servidor: en esta carpeta ejecuta <code>python3 -m http.server 8000</code> y entra a
+    <code>http://localhost:8000</code>, o publícala en GitHub Pages (ver README).
+  </div>
+  <script>
+    if (location.protocol === 'file:') document.getElementById('file-warning').hidden = false;
+  </script>
+
+  <header class="top">
+    <h1>Finanzas</h1>
+    <div class="row">
+      <button id="btn-sync" class="btn primary" type="button" aria-label="Sincronizar">⟳ Sincronizar</button>
+      <button id="btn-settings" class="btn icon" type="button" aria-label="Ajustes" title="Ajustes">⚙</button>
+    </div>
+  </header>
+  <div id="status" class="status" role="status" aria-live="polite"></div>
+
+  <nav class="tabs">
+    <button type="button" data-tab="resumen" class="active">Resumen</button>
+    <button type="button" data-tab="movs">Movimientos</button>
+    <button type="button" data-tab="inv">Inversiones</button>
+    <button type="button" data-tab="deudas">Deudas</button>
+    <button type="button" data-tab="reportes">Reportes</button>
+  </nav>
+
+  <main>
+    <section id="tab-resumen">
+      <div id="resumen-body"></div>
+    </section>
+
+    <section id="tab-movs" hidden>
+      <div id="movs-body"></div>
+    </section>
+
+    <section id="tab-inv" hidden>
+      <div id="inv-body"></div>
+    </section>
+
+    <section id="tab-deudas" hidden>
+      <div id="deudas-body"></div>
+    </section>
+
+    <section id="tab-reportes" hidden>
+      <div id="reportes-body"></div>
+    </section>
+
+    <section id="tab-ajustes" hidden>
+      <h2>Ajustes</h2>
+      <h2>Categorías</h2>
+      <p class="hint">Toca una para editarla o archivarla. Las archivadas dejan de aparecer al registrar, pero los movimientos viejos las conservan.</p>
+      <div id="cat-list"></div>
+      <div class="row wrap" style="margin-top:10px">
+        <button id="btn-add-cat" class="btn" type="button">＋ Añadir categoría</button>
+      </div>
+
+      <h2>Sincronización con GitHub</h2>
+      <p class="hint">Tus datos se cifran en este dispositivo antes de subirse. Usa el mismo usuario, repositorio, token y contraseña en el PC y en el celular.</p>
+      <form id="cfg-form" class="form" autocomplete="off">
+        <label>Usuario de GitHub
+          <input id="cfg-owner" type="text" autocapitalize="off" spellcheck="false" required>
+        </label>
+        <label>Repositorio de datos (privado)
+          <input id="cfg-repo" type="text" autocapitalize="off" spellcheck="false" placeholder="finanzas-datos" required>
+        </label>
+        <label>Rama
+          <input id="cfg-branch" type="text" autocapitalize="off" spellcheck="false" placeholder="main">
+        </label>
+        <label>Archivo
+          <input id="cfg-path" type="text" autocapitalize="off" spellcheck="false" placeholder="datos.enc.json">
+        </label>
+        <label>Token de acceso (fine-grained)
+          <input id="cfg-token" type="password" autocapitalize="off" spellcheck="false" required>
+        </label>
+        <div class="row wrap">
+          <button class="btn primary" type="submit">Guardar y sincronizar</button>
+          <button id="btn-forget-key" class="btn" type="button">Olvidar contraseña en este dispositivo</button>
+        </div>
+      </form>
+
+      <h2>Precios de inversiones</h2>
+      <p class="hint">Opcional. Con una clave gratis de <strong>Twelve Data</strong> (twelvedata.com) la app puede traer el precio de tus acciones y ETF. La clave se guarda solo en este dispositivo (no se sincroniza). Sin clave, escribes los precios a mano.</p>
+      <form id="px-form" class="form" autocomplete="off">
+        <label>Clave de Twelve Data
+          <input id="px-key" type="password" autocapitalize="off" spellcheck="false">
+        </label>
+        <div class="row wrap">
+          <button class="btn primary" type="submit">Guardar clave</button>
+          <button id="px-clear" class="btn" type="button">Quitar clave</button>
+        </div>
+      </form>
+
+      <h2>Respaldo manual</h2>
+      <p class="hint">Archivo cifrado con su propia contraseña. Sirve como copia de seguridad o para pasar datos sin internet.</p>
+      <div class="row wrap">
+        <button id="btn-export" class="btn" type="button">Exportar respaldo</button>
+        <button id="btn-import" class="btn" type="button">Importar respaldo</button>
+        <input id="file-import" type="file" accept=".json,application/json" hidden>
+      </div>
+
+      <h2>Este dispositivo</h2>
+      <p class="hint" id="device-info"></p>
+    </section>
+  </main>
+
+  <button id="fab" class="fab" type="button" aria-label="Añadir movimiento">＋</button>
+
+  <dialog id="sheet"><div id="sheet-body"></div></dialog>
+
+  <dialog id="pass-dialog">
+    <form method="dialog" id="pass-form" class="form">
+      <h3 id="pass-title">Contraseña de cifrado</h3>
+      <p id="pass-text" class="hint"></p>
+      <label>Contraseña
+        <input id="pass-1" type="password" autocomplete="off" required>
+      </label>
+      <label id="pass-2-wrap">Repite la contraseña
+        <input id="pass-2" type="password" autocomplete="off">
+      </label>
+      <p id="pass-error" class="error" hidden></p>
+      <div class="row end">
+        <button id="pass-cancel" class="btn" type="button">Cancelar</button>
+        <button class="btn primary" type="submit">Aceptar</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="app.js"></script>
+</body>
+</html>
